@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuizLab Firebase</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <div>
+        <h1>QuizLab Firebase</h1>
+        <p>Giao diện sáng, gần giống kiểu Moodle, có lưu đề lên Firebase để deploy bằng GitHub Pages.</p>
+      </div>
+      <div class="pill">Static HTML + CSS + JS + Firebase Realtime Database</div>
+    </div>
+
+    <div class="builder">
+      <div class="card panel">
+        <h2>Nhập đề trắc nghiệm</h2>
+        <div class="stack">
+          <div>
+            <label for="quizTitle">Tên bộ đề</label>
+            <input id="quizTitle" type="text" placeholder="Ví dụ: CSDL chương 1" />
+          </div>
+          <div>
+            <label for="rawInput">Dán đề vào đây</label>
+            <textarea id="rawInput" placeholder="1 - Câu hỏi...&#10;[a]--Đáp án A&#10;*[b]--Đáp án đúng&#10;[c]--Đáp án C&#10;[d]--Đáp án D"></textarea>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-primary" onclick="parseQuestions()">Tạo đề</button>
+          <button class="btn-soft" onclick="loadSample()">Tải mẫu</button>
+          <button class="btn-soft" onclick="saveDraftLocal()">Lưu nháp máy này</button>
+          <button class="btn-gray" onclick="clearInput()">Xóa</button>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-primary" onclick="saveQuizToFirebase()">Lưu bộ đề lên Firebase</button>
+          <button class="btn-danger" onclick="deleteCurrentFirebaseQuiz()">Xóa bộ đề đang mở</button>
+        </div>
+
+        <div class="small helper-text">
+          Hỗ trợ format như <code>1 - Câu hỏi</code>, <code>[a]--...</code>, <code>*[d]--...</code>, hoặc kiểu <code>A.</code>, <code>*B.</code>
+        </div>
+
+        <div id="notice"></div>
+      </div>
+
+      <div class="card panel">
+        <h2>Bộ đề đã lưu</h2>
+        <div class="btn-row top-btn-row">
+          <button class="btn-soft" onclick="loadSavedQuizzes()">Làm mới danh sách</button>
+        </div>
+        <div class="saved-list" id="savedList">
+          <div class="small">Chưa tải danh sách từ Firebase.</div>
+        </div>
+        <div class="notice warn static-warning">
+          Trước khi dùng, nhớ thay <code>firebaseConfig</code> trong file <code>app.js</code> bằng config dự án Firebase của bạn.
+        </div>
+      </div>
+    </div>
+
+    <div class="top-tools">
+      <div class="pill" id="topMeta">Chưa có đề nào được tạo</div>
+      <div class="btn-row top-btn-row">
+        <button class="btn-soft" onclick="prevQuestion()">← Câu trước</button>
+        <button class="btn-soft" onclick="nextQuestion()">Câu sau →</button>
+        <button class="btn-primary" onclick="submitQuiz()">Nộp bài</button>
+        <button class="btn-gray" onclick="resetQuiz()">Làm lại</button>
+      </div>
+    </div>
+
+    <div id="quizShell" class="quiz-shell">
+      <aside class="sidebar card">
+        <div class="big">Câu hỏi <span id="currentNumber">0</span></div>
+        <div class="status" id="answerStatus">Chưa trả lời</div>
+        <div class="status">Đạt điểm 1,00</div>
+        <div class="mark"><span class="dot"></span> Đặt cờ</div>
+      </aside>
+
+      <section>
+        <div class="question-card" id="questionCard">
+          <div class="question-text" id="questionText">Bạn chưa tạo đề.</div>
+          <div class="option-list" id="optionList"></div>
+          <div class="quiz-actions">
+            <button class="btn-soft" onclick="toggleFlag()">Đặt cờ / Bỏ cờ</button>
+            <button class="btn-soft" onclick="jumpToUnanswered()">Đến câu chưa làm</button>
+          </div>
+        </div>
+
+        <div class="result-box" id="resultBox">
+          <h3>Kết quả</h3>
+          <div id="resultSummary" class="small result-summary"></div>
+          <div class="result-grid">
+            <div class="result-mini"><strong id="rTotal">0</strong>Tổng câu</div>
+            <div class="result-mini"><strong id="rCorrect">0</strong>Đúng</div>
+            <div class="result-mini"><strong id="rWrong">0</strong>Sai</div>
+            <div class="result-mini"><strong id="rScore">0</strong>Điểm / 10</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
