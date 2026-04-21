@@ -4,9 +4,9 @@ import { getDatabase, ref, push, set, get, child, remove } from "https://www.gst
 const firebaseConfig = {
   apiKey: "AIzaSyDFOd3beHY6b7ENqFFBSyAShSK5O2YDD_c",
   authDomain: "quizexam-8f27d.firebaseapp.com",
-  databaseURL: "https://quizexam-8f27d-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  databaseURL: "https://quizexam-8f27d-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "quizexam-8f27d",
-  storageBucket: "quizexam-8f27d.firebasestorage.app",
+  storageBucket: "quizexam-8f27d.appspot.com",
   messagingSenderId: "623038604901",
   appId: "1:623038604901:web:20b4f081882ff072d6c88c"
 };
@@ -16,10 +16,8 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 let questions = [];
-let currentIndex = 0;
 let submitted = false;
 let currentFirebaseId = null;
-let flagged = {};
 let userAnswers = {};
 
 const SAMPLE = `1 - Trường khóa chính là trường:
@@ -41,8 +39,8 @@ const quizShellEl = document.getElementById("quizShell");
 const topMetaEl = document.getElementById("topMeta");
 const currentNumberEl = document.getElementById("currentNumber");
 const answerStatusEl = document.getElementById("answerStatus");
-const questionTextEl = document.getElementById("questionText");
-const optionListEl = document.getElementById("optionList");
+const questionCardEl = document.getElementById("questionCard");
+const allQuestionsEl = document.getElementById("allQuestions");
 const savedListEl = document.getElementById("savedList");
 const resultBoxEl = document.getElementById("resultBox");
 
@@ -155,68 +153,119 @@ function parseRaw(raw) {
   return { parsed, errorCount };
 }
 
+function getAnsweredCount() {
+  return Object.keys(userAnswers).length;
+}
+
 function updateTopMeta() {
   if (!questions.length) {
     topMetaEl.textContent = "Chưa có đề nào được tạo";
+    currentNumberEl.textContent = "0";
+    answerStatusEl.textContent = "Chưa trả lời câu nào";
     return;
   }
 
-  const answered = Object.keys(userAnswers).length;
+  const answered = getAnsweredCount();
   const title = quizTitleEl.value.trim() || "Bộ đề chưa đặt tên";
   topMetaEl.textContent = `${title} • ${questions.length} câu • Đã làm ${answered}/${questions.length}`;
+  currentNumberEl.textContent = String(questions.length);
+  answerStatusEl.textContent = `Đã trả lời ${answered}/${questions.length} câu`;
 }
 
-function renderQuestion() {
-  if (!questions.length) return;
+function getQuestionResultClass(questionIndex) {
+  if (!submitted) return "";
 
-  quizShellEl.style.display = "grid";
-  const question = questions[currentIndex];
-  currentNumberEl.textContent = String(currentIndex + 1);
+  const chosen = userAnswers[questionIndex];
+  if (chosen === undefined) return "wrong-block";
+  return questions[questionIndex].options[chosen].correct ? "correct-block" : "wrong-block";
+}
 
-  if (userAnswers[currentIndex] === undefined) {
-    answerStatusEl.textContent = "Chưa trả lời";
-  } else {
-    answerStatusEl.textContent = `Đã chọn đáp án ${question.options[userAnswers[currentIndex]].letter}`;
+function buildOptionHtml(questionIndex, option, optionIndex) {
+  const chosenIndex = userAnswers[questionIndex];
+  const isChosen = chosenIndex === optionIndex;
+  const classes = ["option"];
+
+  if (isChosen) classes.push("selected");
+
+  if (submitted) {
+    if (isChosen && option.correct) classes.push("correct");
+    if (isChosen && !option.correct) classes.push("wrong");
+    if (!isChosen && option.correct) classes.push("reveal");
   }
 
-  if (flagged[currentIndex]) {
-    answerStatusEl.textContent += " • Đã đặt cờ";
-  }
-
-  questionTextEl.innerHTML = escapeHtml(question.text);
-  optionListEl.innerHTML = "";
-
-  question.options.forEach((option, index) => {
-    const label = document.createElement("label");
-    label.className = "option";
-
-    if (userAnswers[currentIndex] === index) {
-      label.classList.add("selected");
-    }
-
-    if (submitted) {
-      const isChosen = userAnswers[currentIndex] === index;
-      if (option.correct && !isChosen) label.classList.add("reveal");
-      if (isChosen && option.correct) label.classList.add("correct");
-      if (isChosen && !option.correct) label.classList.add("wrong");
-    }
-
-    label.innerHTML = `
-      <input type="radio" name="answer" ${userAnswers[currentIndex] === index ? "checked" : ""} ${submitted ? "disabled" : ""}>
+  return `
+    <label class="${classes.join(" ")}">
+      <input type="radio" name="answer-${questionIndex}" value="${optionIndex}" ${isChosen ? "checked" : ""} ${submitted ? "disabled" : ""}>
       <div class="letter">${option.letter}.</div>
       <div>${escapeHtml(option.text)}</div>
-    `;
+    </label>
+  `;
+}
 
-    if (!submitted) {
-      label.addEventListener("click", () => {
-        userAnswers[currentIndex] = index;
-        updateTopMeta();
-        renderQuestion();
+function renderAllQuestions() {
+  if (!questions.length) {
+    quizShellEl.style.display = "none";
+    questionCardEl.innerHTML = `<div class="question-text">Bạn chưa tạo đề.</div>`;
+    allQuestionsEl.innerHTML = "";
+    return;
+  }
+
+  quizShellEl.style.display = "grid";
+  questionCardEl.innerHTML = `
+    <div class="question-text">
+      Bộ đề đã được tạo. Tất cả câu hỏi đang hiển thị trên <strong>một trang</strong>, bạn chỉ cần cuộn xuống để làm hết.
+    </div>
+  `;
+
+  allQuestionsEl.innerHTML = questions.map((question, index) => `
+    <div class="question-card question-block ${getQuestionResultClass(index)}" id="question-${index}">
+      <div class="question-head">
+        <div class="question-index">Câu ${index + 1}</div>
+        <div class="question-body">${escapeHtml(question.text)}</div>
+      </div>
+      <div class="option-list">
+        ${question.options.map((option, optionIndex) => buildOptionHtml(index, option, optionIndex)).join("")}
+      </div>
+      <div class="question-meta" id="meta-${index}">${buildQuestionMeta(index)}</div>
+    </div>
+  `).join("");
+
+  if (!submitted) {
+    questions.forEach((question, questionIndex) => {
+      question.options.forEach((option, optionIndex) => {
+        const selector = `input[name="answer-${questionIndex}"][value="${optionIndex}"]`;
+        const input = allQuestionsEl.querySelector(selector);
+        if (input) {
+          input.addEventListener("change", () => {
+            userAnswers[questionIndex] = optionIndex;
+            updateTopMeta();
+            renderAllQuestions();
+          });
+        }
       });
-    }
+    });
+  }
+}
 
-    optionListEl.appendChild(label);
-  });
+function buildQuestionMeta(questionIndex) {
+  const chosen = userAnswers[questionIndex];
+
+  if (!submitted) {
+    if (chosen === undefined) return "Chưa trả lời";
+    return `Đã chọn đáp án ${questions[questionIndex].options[chosen].letter}`;
+  }
+
+  if (chosen === undefined) {
+    const correct = questions[questionIndex].options.find(option => option.correct);
+    return `Chưa trả lời • Đáp án đúng là ${correct ? correct.letter : "?"}`;
+  }
+
+  if (questions[questionIndex].options[chosen].correct) {
+    return `Đúng • Bạn đã chọn ${questions[questionIndex].options[chosen].letter}`;
+  }
+
+  const correct = questions[questionIndex].options.find(option => option.correct);
+  return `Sai • Bạn chọn ${questions[questionIndex].options[chosen].letter} • Đáp án đúng là ${correct ? correct.letter : "?"}`;
 }
 
 function parseQuestions() {
@@ -233,59 +282,46 @@ function parseQuestions() {
   }
 
   questions = parsed;
-  currentIndex = 0;
   submitted = false;
   currentFirebaseId = null;
-  flagged = {};
   userAnswers = {};
   resultBoxEl.style.display = "none";
 
   updateTopMeta();
-  renderQuestion();
+  renderAllQuestions();
   showNotice("info", `Đã tạo ${parsed.length} câu hỏi.${errorCount ? ` Bỏ qua ${errorCount} câu lỗi format.` : ""}`);
 }
 
-function prevQuestion() {
+function scrollToFirstUnanswered() {
   if (!questions.length) return;
-  currentIndex = Math.max(0, currentIndex - 1);
-  renderQuestion();
-}
 
-function nextQuestion() {
-  if (!questions.length) return;
-  currentIndex = Math.min(questions.length - 1, currentIndex + 1);
-  renderQuestion();
-}
-
-function toggleFlag() {
-  if (!questions.length) return;
-  flagged[currentIndex] = !flagged[currentIndex];
-  renderQuestion();
-}
-
-function jumpToUnanswered() {
   const index = questions.findIndex((_, idx) => userAnswers[idx] === undefined);
   if (index === -1) {
     showNotice("info", "Bạn đã trả lời hết các câu.");
     return;
   }
 
-  currentIndex = index;
-  renderQuestion();
+  const element = document.getElementById(`question-${index}`);
+  if (element) {
+    element.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 function submitQuiz() {
   if (!questions.length) return;
 
   submitted = true;
-  renderQuestion();
+  renderAllQuestions();
 
   let correct = 0;
   let wrong = 0;
 
   questions.forEach((question, index) => {
     const chosen = userAnswers[index];
-    if (chosen === undefined) return;
+    if (chosen === undefined) {
+      wrong += 1;
+      return;
+    }
     if (question.options[chosen].correct) correct += 1;
     else wrong += 1;
   });
@@ -299,6 +335,7 @@ function submitQuiz() {
   document.getElementById("rScore").textContent = String(score);
   document.getElementById("resultSummary").textContent = `Bạn làm đúng ${correct}/${total} câu. Câu chưa làm được tính là sai khi quy đổi điểm.`;
   resultBoxEl.style.display = "block";
+  resultBoxEl.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function resetQuiz() {
@@ -306,12 +343,11 @@ function resetQuiz() {
 
   submitted = false;
   userAnswers = {};
-  flagged = {};
-  currentIndex = 0;
   resultBoxEl.style.display = "none";
 
   updateTopMeta();
-  renderQuestion();
+  renderAllQuestions();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function clearInput() {
@@ -493,12 +529,9 @@ window.saveDraftLocal = saveDraftLocal;
 window.saveQuizToFirebase = saveQuizToFirebase;
 window.deleteCurrentFirebaseQuiz = deleteCurrentFirebaseQuiz;
 window.loadSavedQuizzes = loadSavedQuizzes;
-window.prevQuestion = prevQuestion;
-window.nextQuestion = nextQuestion;
 window.submitQuiz = submitQuiz;
 window.resetQuiz = resetQuiz;
-window.toggleFlag = toggleFlag;
-window.jumpToUnanswered = jumpToUnanswered;
+window.scrollToFirstUnanswered = scrollToFirstUnanswered;
 
 loadDraftLocal();
 loadSavedQuizzes();

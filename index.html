@@ -11,7 +11,7 @@
     <div class="hero">
       <div>
         <h1>QuizLab Firebase</h1>
-        <p>Giao diện sáng, gần giống kiểu Moodle, có lưu đề lên Firebase để deploy bằng GitHub Pages.</p>
+        <p>Giao diện sáng, hiện toàn bộ câu hỏi trên một trang, có lưu đề lên Firebase để deploy bằng GitHub Pages.</p>
       </div>
       <div class="pill">Static HTML + CSS + JS + Firebase Realtime Database</div>
     </div>
@@ -66,8 +66,7 @@
     <div class="top-tools">
       <div class="pill" id="topMeta">Chưa có đề nào được tạo</div>
       <div class="btn-row top-btn-row">
-        <button class="btn-soft" onclick="prevQuestion()">← Câu trước</button>
-        <button class="btn-soft" onclick="nextQuestion()">Câu sau →</button>
+        <button class="btn-soft" onclick="scrollToFirstUnanswered()">Đến câu chưa làm</button>
         <button class="btn-primary" onclick="submitQuiz()">Nộp bài</button>
         <button class="btn-gray" onclick="resetQuiz()">Làm lại</button>
       </div>
@@ -75,21 +74,19 @@
 
     <div id="quizShell" class="quiz-shell">
       <aside class="sidebar card">
-        <div class="big">Câu hỏi <span id="currentNumber">0</span></div>
-        <div class="status" id="answerStatus">Chưa trả lời</div>
+        <div class="big">Bộ đề <span id="currentNumber">0</span></div>
+        <div class="status">Tổng số câu hỏi</div>
+        <div class="status" id="answerStatus">Chưa trả lời câu nào</div>
         <div class="status">Đạt điểm 1,00</div>
-        <div class="mark"><span class="dot"></span> Đặt cờ</div>
+        <div class="mark"><span class="dot"></span> Cuộn để xem toàn bộ câu hỏi</div>
       </aside>
 
       <section>
-        <div class="question-card" id="questionCard">
-          <div class="question-text" id="questionText">Bạn chưa tạo đề.</div>
-          <div class="option-list" id="optionList"></div>
-          <div class="quiz-actions">
-            <button class="btn-soft" onclick="toggleFlag()">Đặt cờ / Bỏ cờ</button>
-            <button class="btn-soft" onclick="jumpToUnanswered()">Đến câu chưa làm</button>
-          </div>
+        <div class="question-card intro-card" id="questionCard">
+          <div class="question-text">Toàn bộ câu hỏi sẽ hiển thị tại đây sau khi bạn bấm <strong>Tạo đề</strong>.</div>
         </div>
+
+        <div class="all-questions" id="allQuestions"></div>
 
         <div class="result-box" id="resultBox">
           <h3>Kết quả</h3>
