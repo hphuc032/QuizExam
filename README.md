@@ -10,13 +10,13 @@ Supported question format:
 
 ```text
 1 - Nội dung câu hỏi
-[a]--Đáp án A
-*[b]--Đáp án đúng
-[c]--Đáp án C
-[d]--Đáp án D
+a) Đáp án A
+*b) Đáp án đúng
+*c) Đáp án đúng khác nếu có
+d) Đáp án D
 ```
 
-You can also use `A.`, `*B.`, `C.`, `D.` for answer lines.
+Use `*` before every correct option. Questions can have one or more correct answers. Older `[a]--...` lines are still supported for existing quizzes.
 
 ## Firebase safety checklist
 

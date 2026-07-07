@@ -21,16 +21,16 @@ let currentFirebaseId = null;
 let userAnswers = {};
 
 const SAMPLE = `1 - Trường khóa chính là trường:
-[a]--Single Key
-[b]--Unique Key
-[c]--First Key
-*[d]--Primary Key
+a) Single Key
+b) Unique Key
+c) First Key
+*d) Primary Key
 
 2 - Câu nào trong các câu dưới đây sai khi nói về hệ CSDL khách-chủ?
-[a]--Trong kiến trúc khách-chủ, các thành phần tương tác với nhau tạo nên hệ thống gồm thành phần yêu cầu tài nguyên và thành phần cấp tài nguyên
-*[b]--Hai thành phần yêu cầu tài nguyên và thành phần cấp tài nguyên phải cài đặt trên cùng một máy tính
-[c]--Thành phần cấp tài nguyên thường được cài đặt tại một máy chủ trên mạng cục bộ
-[d]--Thành phần yêu cầu tài nguyên có thể cài đặt tại nhiều máy khác trên mạng`;
+a) Trong kiến trúc khách-chủ, các thành phần tương tác với nhau tạo nên hệ thống gồm thành phần yêu cầu tài nguyên và thành phần cấp tài nguyên
+*b) Hai thành phần yêu cầu tài nguyên và thành phần cấp tài nguyên phải cài đặt trên cùng một máy tính
+c) Thành phần cấp tài nguyên thường được cài đặt tại một máy chủ trên mạng cục bộ
+d) Thành phần yêu cầu tài nguyên có thể cài đặt tại nhiều máy khác trên mạng`;
 
 const noticeEl = document.getElementById("notice");
 const rawInputEl = document.getElementById("rawInput");
@@ -105,7 +105,7 @@ function parseQuestionText(line) {
 
 function parseOptionLine(line) {
   const trimmed = line.trim();
-  let match = trimmed.match(/^(\*)?\s*\[([a-dA-D])\]\s*--\s*(.+)$/);
+  let match = trimmed.match(/^(\*)?\s*\[([a-dA-D])\]\s*(?:--\s*)?(.+)$/);
   if (match) {
     return {
       correct: Boolean(match[1]),
@@ -114,7 +114,7 @@ function parseOptionLine(line) {
     };
   }
 
-  match = trimmed.match(/^(\*)?\s*([a-dA-D])\s*[.)-]\s*(.+)$/);
+  match = trimmed.match(/^(\*)?\s*([a-dA-D])\s*[.)-]\s*(?:--\s*)?(.+)$/);
   if (match) {
     return {
       correct: Boolean(match[1]),
@@ -163,8 +163,8 @@ function parseRaw(raw) {
     }
 
     const correctCount = options.filter(option => option.correct).length;
-    if (options.length < 2 || correctCount !== 1) {
-      errors.push(`Dòng ${block[0].lineNumber}: cần ít nhất 2 đáp án và đúng 1 đáp án được đánh dấu *.`);
+    if (options.length < 2 || correctCount < 1) {
+      errors.push(`Dòng ${block[0].lineNumber}: cần ít nhất 2 đáp án và ít nhất 1 đáp án được đánh dấu *.`);
       continue;
     }
 
@@ -175,7 +175,36 @@ function parseRaw(raw) {
 }
 
 function getAnsweredCount() {
-  return Object.keys(userAnswers).length;
+  return questions.filter((_, index) => isQuestionAnswered(index)).length;
+}
+
+function getSelectedAnswers(questionIndex) {
+  return Array.isArray(userAnswers[questionIndex]) ? userAnswers[questionIndex] : [];
+}
+
+function getCorrectAnswers(question) {
+  return question.options
+    .map((option, index) => option.correct ? index : -1)
+    .filter(index => index !== -1);
+}
+
+function isQuestionAnswered(questionIndex) {
+  return getSelectedAnswers(questionIndex).length > 0;
+}
+
+function hasExactAnswers(question, selectedAnswers) {
+  const correctAnswers = getCorrectAnswers(question);
+  if (selectedAnswers.length !== correctAnswers.length) return false;
+
+  const selectedSet = new Set(selectedAnswers);
+  return correctAnswers.every(index => selectedSet.has(index));
+}
+
+function formatAnswerLetters(question, indexes) {
+  return indexes
+    .map(index => question.options[index]?.letter)
+    .filter(Boolean)
+    .join(", ");
 }
 
 function updateTopMeta() {
@@ -196,14 +225,14 @@ function updateTopMeta() {
 function getQuestionResultClass(questionIndex) {
   if (!submitted) return "";
 
-  const chosen = userAnswers[questionIndex];
-  if (chosen === undefined) return "wrong-block";
-  return questions[questionIndex].options[chosen].correct ? "correct-block" : "wrong-block";
+  const selectedAnswers = getSelectedAnswers(questionIndex);
+  if (!selectedAnswers.length) return "wrong-block";
+  return hasExactAnswers(questions[questionIndex], selectedAnswers) ? "correct-block" : "wrong-block";
 }
 
 function buildOptionHtml(questionIndex, option, optionIndex) {
-  const chosenIndex = userAnswers[questionIndex];
-  const isChosen = chosenIndex === optionIndex;
+  const selectedAnswers = getSelectedAnswers(questionIndex);
+  const isChosen = selectedAnswers.includes(optionIndex);
   const classes = ["option"];
 
   if (isChosen) classes.push("selected");
@@ -216,7 +245,7 @@ function buildOptionHtml(questionIndex, option, optionIndex) {
 
   return `
     <label class="${classes.join(" ")}">
-      <input type="radio" name="answer-${questionIndex}" value="${optionIndex}" ${isChosen ? "checked" : ""} ${submitted ? "disabled" : ""}>
+      <input type="checkbox" name="answer-${questionIndex}" value="${optionIndex}" ${isChosen ? "checked" : ""} ${submitted ? "disabled" : ""}>
       <div class="letter">${option.letter}.</div>
       <div>${escapeHtml(option.text)}</div>
     </label>
@@ -258,7 +287,14 @@ function renderAllQuestions() {
         const input = allQuestionsEl.querySelector(selector);
         if (input) {
           input.addEventListener("change", () => {
-            userAnswers[questionIndex] = optionIndex;
+            const selectedAnswers = new Set(getSelectedAnswers(questionIndex));
+            if (input.checked) selectedAnswers.add(optionIndex);
+            else selectedAnswers.delete(optionIndex);
+
+            const nextAnswers = [...selectedAnswers].sort((a, b) => a - b);
+            if (nextAnswers.length) userAnswers[questionIndex] = nextAnswers;
+            else delete userAnswers[questionIndex];
+
             updateTopMeta();
             renderAllQuestions();
           });
@@ -269,24 +305,25 @@ function renderAllQuestions() {
 }
 
 function buildQuestionMeta(questionIndex) {
-  const chosen = userAnswers[questionIndex];
+  const question = questions[questionIndex];
+  const selectedAnswers = getSelectedAnswers(questionIndex);
+  const selectedLetters = formatAnswerLetters(question, selectedAnswers);
+  const correctLetters = formatAnswerLetters(question, getCorrectAnswers(question));
 
   if (!submitted) {
-    if (chosen === undefined) return "Chưa trả lời";
-    return `Đã chọn đáp án ${questions[questionIndex].options[chosen].letter}`;
+    if (!selectedAnswers.length) return "Chưa trả lời";
+    return `Đã chọn đáp án ${selectedLetters}`;
   }
 
-  if (chosen === undefined) {
-    const correct = questions[questionIndex].options.find(option => option.correct);
-    return `Chưa trả lời • Đáp án đúng là ${correct ? correct.letter : "?"}`;
+  if (!selectedAnswers.length) {
+    return `Chưa trả lời • Đáp án đúng là ${correctLetters || "?"}`;
   }
 
-  if (questions[questionIndex].options[chosen].correct) {
-    return `Đúng • Bạn đã chọn ${questions[questionIndex].options[chosen].letter}`;
+  if (hasExactAnswers(question, selectedAnswers)) {
+    return `Đúng • Bạn đã chọn ${selectedLetters}`;
   }
 
-  const correct = questions[questionIndex].options.find(option => option.correct);
-  return `Sai • Bạn chọn ${questions[questionIndex].options[chosen].letter} • Đáp án đúng là ${correct ? correct.letter : "?"}`;
+  return `Sai • Bạn chọn ${selectedLetters} • Đáp án đúng là ${correctLetters || "?"}`;
 }
 
 function formatParseNotice(parsedCount, errors) {
@@ -329,7 +366,7 @@ function parseQuestions() {
 function scrollToFirstUnanswered() {
   if (!questions.length) return;
 
-  const index = questions.findIndex((_, idx) => userAnswers[idx] === undefined);
+  const index = questions.findIndex((_, idx) => !isQuestionAnswered(idx));
   if (index === -1) {
     showNotice("info", "Bạn đã trả lời hết các câu.");
     return;
@@ -351,12 +388,12 @@ function submitQuiz() {
   let wrong = 0;
 
   questions.forEach((question, index) => {
-    const chosen = userAnswers[index];
-    if (chosen === undefined) {
+    const selectedAnswers = getSelectedAnswers(index);
+    if (!selectedAnswers.length) {
       wrong += 1;
       return;
     }
-    if (question.options[chosen].correct) correct += 1;
+    if (hasExactAnswers(question, selectedAnswers)) correct += 1;
     else wrong += 1;
   });
 
