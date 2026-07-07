@@ -43,13 +43,34 @@ const questionCardEl = document.getElementById("questionCard");
 const allQuestionsEl = document.getElementById("allQuestions");
 const savedListEl = document.getElementById("savedList");
 const resultBoxEl = document.getElementById("resultBox");
+const MAX_RAW_LENGTH = 120000;
 
 function showNotice(type, text) {
-  noticeEl.innerHTML = `<div class="notice ${type}">${text}</div>`;
+  noticeEl.replaceChildren();
+  const message = document.createElement("div");
+  message.className = `notice ${type}`;
+  message.textContent = text;
+  noticeEl.append(message);
 }
 
 function clearNotice() {
-  noticeEl.innerHTML = "";
+  noticeEl.replaceChildren();
+}
+
+function setBusy(isBusy) {
+  document.querySelectorAll("[data-busy-control]").forEach(button => {
+    button.disabled = isBusy;
+    button.classList.toggle("is-busy", isBusy);
+  });
+}
+
+async function withBusy(action) {
+  setBusy(true);
+  try {
+    return await action();
+  } finally {
+    setBusy(false);
+  }
 }
 
 function escapeHtml(str) {
@@ -110,47 +131,47 @@ function parseRaw(raw) {
   const blocks = [];
   let current = null;
 
-  for (const line of lines) {
+  lines.forEach((line, index) => {
     if (isQuestionHeader(line)) {
       if (current) blocks.push(current);
-      current = [line.trim()];
+      current = [{ text: line.trim(), lineNumber: index + 1 }];
     } else if (current && line.trim()) {
-      current.push(line.trim());
+      current.push({ text: line.trim(), lineNumber: index + 1 });
     }
-  }
+  });
 
   if (current) blocks.push(current);
 
   const parsed = [];
-  let errorCount = 0;
+  const errors = [];
 
   for (const block of blocks) {
-    const question = parseQuestionText(block[0]);
+    const question = parseQuestionText(block[0].text);
     if (!question) {
-      errorCount += 1;
+      errors.push(`Dòng ${block[0].lineNumber}: thiếu nội dung câu hỏi.`);
       continue;
     }
 
     const options = [];
     for (const rawLine of block.slice(1)) {
-      const parsedOption = parseOptionLine(rawLine);
+      const parsedOption = parseOptionLine(rawLine.text);
       if (parsedOption) {
         options.push(parsedOption);
       } else if (options.length > 0) {
-        options[options.length - 1].text += " " + rawLine.trim();
+        options[options.length - 1].text += " " + rawLine.text.trim();
       }
     }
 
     const correctCount = options.filter(option => option.correct).length;
     if (options.length < 2 || correctCount !== 1) {
-      errorCount += 1;
+      errors.push(`Dòng ${block[0].lineNumber}: cần ít nhất 2 đáp án và đúng 1 đáp án được đánh dấu *.`);
       continue;
     }
 
     parsed.push({ text: question, options });
   }
 
-  return { parsed, errorCount };
+  return { parsed, errorCount: errors.length, errors };
 }
 
 function getAnsweredCount() {
@@ -268,6 +289,14 @@ function buildQuestionMeta(questionIndex) {
   return `Sai • Bạn chọn ${questions[questionIndex].options[chosen].letter} • Đáp án đúng là ${correct ? correct.letter : "?"}`;
 }
 
+function formatParseNotice(parsedCount, errors) {
+  if (!errors.length) return `Đã tạo ${parsedCount} câu hỏi.`;
+
+  const preview = errors.slice(0, 3).join(" ");
+  const suffix = errors.length > 3 ? ` Còn ${errors.length - 3} lỗi khác.` : "";
+  return `Đã tạo ${parsedCount} câu hỏi. Bỏ qua ${errors.length} câu lỗi format. ${preview}${suffix}`;
+}
+
 function parseQuestions() {
   const raw = rawInputEl.value.trim();
   if (!raw) {
@@ -275,7 +304,12 @@ function parseQuestions() {
     return;
   }
 
-  const { parsed, errorCount } = parseRaw(raw);
+  if (raw.length > MAX_RAW_LENGTH) {
+    showNotice("warn", "Nội dung đề quá dài. Hãy chia thành nhiều bộ đề nhỏ hơn để trình duyệt xử lý ổn định.");
+    return;
+  }
+
+  const { parsed, errors } = parseRaw(raw);
   if (!parsed.length) {
     showNotice("err", "Không parse được câu hỏi nào. Hãy kiểm tra lại format.");
     return;
@@ -289,7 +323,7 @@ function parseQuestions() {
 
   updateTopMeta();
   renderAllQuestions();
-  showNotice("info", `Đã tạo ${parsed.length} câu hỏi.${errorCount ? ` Bỏ qua ${errorCount} câu lỗi format.` : ""}`);
+  showNotice("info", formatParseNotice(parsed.length, errors));
 }
 
 function scrollToFirstUnanswered() {
@@ -399,13 +433,19 @@ async function saveQuizToFirebase() {
     return;
   }
 
-  const { parsed, errorCount } = parseRaw(raw);
+  if (raw.length > MAX_RAW_LENGTH) {
+    showNotice("warn", "Nội dung đề quá dài. Hãy chia thành nhiều bộ đề nhỏ hơn trước khi lưu.");
+    return;
+  }
+
+  const { parsed, errors } = parseRaw(raw);
   if (!parsed.length) {
     showNotice("err", "Đề không hợp lệ nên chưa thể lưu Firebase.");
     return;
   }
 
   try {
+    showNotice("info", "Đang lưu bộ đề lên Firebase...");
     if (currentFirebaseId) {
       await set(ref(db, `quizzes/${currentFirebaseId}`), {
         title,
@@ -425,7 +465,7 @@ async function saveQuizToFirebase() {
       currentFirebaseId = newRef.key;
     }
 
-    showNotice("info", `Đã lưu bộ đề lên Firebase.${errorCount ? ` Có ${errorCount} câu lỗi bị bỏ qua khi parse.` : ""}`);
+    showNotice("info", `Đã lưu bộ đề lên Firebase.${errors.length ? ` Có ${errors.length} câu lỗi bị bỏ qua khi parse.` : ""}`);
     await loadSavedQuizzes();
   } catch (error) {
     showNotice("err", "Lưu Firebase thất bại: " + error.message);
@@ -439,6 +479,7 @@ async function loadSavedQuizzes() {
   }
 
   try {
+    savedListEl.innerHTML = '<div class="small">Đang tải danh sách từ Firebase...</div>';
     const snapshot = await get(child(ref(db), "quizzes"));
     if (!snapshot.exists()) {
       savedListEl.innerHTML = '<div class="small">Chưa có bộ đề nào trong Firebase.</div>';
@@ -455,20 +496,20 @@ async function loadSavedQuizzes() {
     savedListEl.innerHTML = items.map(item => `
       <div class="saved-item">
         <h4>${escapeHtml(item.title || "Không tên")}</h4>
-        <div class="meta">${item.questionCount || 0} câu • Cập nhật: ${escapeHtml(String(item.updatedAt || "").replace("T", " ").slice(0, 16))}</div>
+        <div class="meta">${Number(item.questionCount || 0)} câu • Cập nhật: ${escapeHtml(String(item.updatedAt || "").replace("T", " ").slice(0, 16))}</div>
         <div class="actions">
-          <button class="btn-soft" data-load="${item.id}">Mở</button>
-          <button class="btn-danger" data-delete="${item.id}">Xóa</button>
+          <button class="btn-soft" type="button" data-busy-control data-load="${escapeHtml(item.id)}">Mở</button>
+          <button class="btn-danger" type="button" data-busy-control data-delete="${escapeHtml(item.id)}">Xóa</button>
         </div>
       </div>
     `).join("");
 
     savedListEl.querySelectorAll("[data-load]").forEach(button => {
-      button.addEventListener("click", () => loadQuizFromFirebase(button.dataset.load));
+      button.addEventListener("click", () => withBusy(() => loadQuizFromFirebase(button.dataset.load)));
     });
 
     savedListEl.querySelectorAll("[data-delete]").forEach(button => {
-      button.addEventListener("click", () => deleteQuizById(button.dataset.delete));
+      button.addEventListener("click", () => withBusy(() => deleteQuizById(button.dataset.delete)));
     });
   } catch (error) {
     savedListEl.innerHTML = '<div class="small">Không tải được danh sách: ' + escapeHtml(error.message) + '</div>';
@@ -479,6 +520,7 @@ async function loadQuizFromFirebase(id) {
   if (!firebaseReady) return;
 
   try {
+    showNotice("info", "Đang mở bộ đề từ Firebase...");
     const snapshot = await get(child(ref(db), `quizzes/${id}`));
     if (!snapshot.exists()) {
       showNotice("warn", "Không tìm thấy bộ đề này.");
@@ -500,10 +542,11 @@ async function loadQuizFromFirebase(id) {
 async function deleteQuizById(id) {
   if (!firebaseReady) return;
 
-  const confirmed = window.confirm("Xóa bộ đề này khỏi Firebase?");
+  const confirmed = window.confirm("Xóa bộ đề này khỏi Firebase? Hành động này không thể hoàn tác.");
   if (!confirmed) return;
 
   try {
+    showNotice("info", "Đang xóa bộ đề...");
     await remove(ref(db, `quizzes/${id}`));
     if (currentFirebaseId === id) currentFirebaseId = null;
     showNotice("info", "Đã xóa bộ đề.");
@@ -522,16 +565,16 @@ async function deleteCurrentFirebaseQuiz() {
   await deleteQuizById(currentFirebaseId);
 }
 
-window.parseQuestions = parseQuestions;
-window.loadSample = loadSample;
-window.clearInput = clearInput;
-window.saveDraftLocal = saveDraftLocal;
-window.saveQuizToFirebase = saveQuizToFirebase;
-window.deleteCurrentFirebaseQuiz = deleteCurrentFirebaseQuiz;
-window.loadSavedQuizzes = loadSavedQuizzes;
-window.submitQuiz = submitQuiz;
-window.resetQuiz = resetQuiz;
-window.scrollToFirstUnanswered = scrollToFirstUnanswered;
+document.getElementById("parseBtn").addEventListener("click", parseQuestions);
+document.getElementById("sampleBtn").addEventListener("click", loadSample);
+document.getElementById("draftBtn").addEventListener("click", saveDraftLocal);
+document.getElementById("clearBtn").addEventListener("click", clearInput);
+document.getElementById("saveFirebaseBtn").addEventListener("click", () => withBusy(saveQuizToFirebase));
+document.getElementById("deleteCurrentBtn").addEventListener("click", () => withBusy(deleteCurrentFirebaseQuiz));
+document.getElementById("refreshSavedBtn").addEventListener("click", () => withBusy(loadSavedQuizzes));
+document.getElementById("firstUnansweredBtn").addEventListener("click", scrollToFirstUnanswered);
+document.getElementById("submitBtn").addEventListener("click", submitQuiz);
+document.getElementById("resetBtn").addEventListener("click", resetQuiz);
 
 loadDraftLocal();
-loadSavedQuizzes();
+withBusy(loadSavedQuizzes);

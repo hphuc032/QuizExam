@@ -1,0 +1,7 @@
+*.exe
+*.obj
+*.o
+*.log
+tempCodeRunnerFile.*
+.DS_Store
+Thumbs.db

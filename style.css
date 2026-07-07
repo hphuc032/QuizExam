@@ -138,6 +138,13 @@ button:hover {
   transform: translateY(-1px);
 }
 
+button:disabled,
+button.is-busy {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+}
+
 .btn-primary {
   background: var(--primary);
   color: #fff;

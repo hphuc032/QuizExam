@@ -31,15 +31,15 @@
         </div>
 
         <div class="btn-row">
-          <button class="btn-primary" onclick="parseQuestions()">Tạo đề</button>
-          <button class="btn-soft" onclick="loadSample()">Tải mẫu</button>
-          <button class="btn-soft" onclick="saveDraftLocal()">Lưu nháp máy này</button>
-          <button class="btn-gray" onclick="clearInput()">Xóa</button>
+          <button id="parseBtn" class="btn-primary" type="button">Tạo đề</button>
+          <button id="sampleBtn" class="btn-soft" type="button">Tải mẫu</button>
+          <button id="draftBtn" class="btn-soft" type="button">Lưu nháp máy này</button>
+          <button id="clearBtn" class="btn-gray" type="button">Xóa</button>
         </div>
 
         <div class="btn-row">
-          <button class="btn-primary" onclick="saveQuizToFirebase()">Lưu bộ đề lên Firebase</button>
-          <button class="btn-danger" onclick="deleteCurrentFirebaseQuiz()">Xóa bộ đề đang mở</button>
+          <button id="saveFirebaseBtn" class="btn-primary" type="button" data-busy-control>Lưu bộ đề lên Firebase</button>
+          <button id="deleteCurrentBtn" class="btn-danger" type="button" data-busy-control>Xóa bộ đề đang mở</button>
         </div>
 
         <div class="small helper-text">
@@ -52,13 +52,13 @@
       <div class="card panel">
         <h2>Bộ đề đã lưu</h2>
         <div class="btn-row top-btn-row">
-          <button class="btn-soft" onclick="loadSavedQuizzes()">Làm mới danh sách</button>
+          <button id="refreshSavedBtn" class="btn-soft" type="button" data-busy-control>Làm mới danh sách</button>
         </div>
         <div class="saved-list" id="savedList">
           <div class="small">Chưa tải danh sách từ Firebase.</div>
         </div>
         <div class="notice warn static-warning">
-          Trước khi dùng, nhớ thay <code>firebaseConfig</code> trong file <code>app.js</code> bằng config dự án Firebase của bạn.
+          Dữ liệu Firebase cần được bảo vệ bằng Rules và Authentication nếu dùng cho người dùng thật.
         </div>
       </div>
     </div>
@@ -66,9 +66,9 @@
     <div class="top-tools">
       <div class="pill" id="topMeta">Chưa có đề nào được tạo</div>
       <div class="btn-row top-btn-row">
-        <button class="btn-soft" onclick="scrollToFirstUnanswered()">Đến câu chưa làm</button>
-        <button class="btn-primary" onclick="submitQuiz()">Nộp bài</button>
-        <button class="btn-gray" onclick="resetQuiz()">Làm lại</button>
+        <button id="firstUnansweredBtn" class="btn-soft" type="button">Đến câu chưa làm</button>
+        <button id="submitBtn" class="btn-primary" type="button">Nộp bài</button>
+        <button id="resetBtn" class="btn-gray" type="button">Làm lại</button>
       </div>
     </div>
 
