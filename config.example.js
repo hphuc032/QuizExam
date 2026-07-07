@@ -1,9 +1,9 @@
 window.QUIZLAB_FIREBASE_CONFIG = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.REGION.firebasedatabase.app",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDlGb9QtUHpxG5KW_ATkIjTheH8s5OGVT0",
+  authDomain: "quizexam-8f27d.firebaseapp.com",
+  databaseURL: "https://quizexam-8f27d-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "quizexam-8f27d",
+  storageBucket: "quizexam-8f27d.firebasestorage.app",
+  messagingSenderId: "623038604901",
+  appId: "1:623038604901:web:20b4f081882ff072d6c88c"
 };
