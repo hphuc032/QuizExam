@@ -6,6 +6,16 @@ QuizLab is a static HTML/CSS/JavaScript quiz builder that can save quiz drafts t
 
 Open `index.html` in a browser, paste a quiz, then click **Tạo đề**.
 
+## Firebase config
+
+The real Firebase config must live in `config.js`, which is intentionally ignored by Git.
+
+1. Copy `config.example.js` to `config.js`.
+2. Fill in your Firebase web app config.
+3. Restrict the Firebase API key and Realtime Database rules in Firebase/Google Cloud.
+
+Never commit `config.js` with a real API key.
+
 Supported question format:
 
 ```text
@@ -20,10 +30,11 @@ Use `*` before every correct option. Questions can have one or more correct answ
 
 ## Firebase safety checklist
 
-The Firebase config in `app.js` is public by design when used in a browser app. Security must come from Firebase Rules and Authentication, not from hiding the config.
+The Firebase web config is public by design when used in a browser app. Security must come from Firebase Rules, Authentication, and API key restrictions, not from hiding the config.
 
 Before using this with real users:
 
+- Revoke or rotate any key that was previously committed to a public repository.
 - Enable Firebase Authentication.
 - Restrict write/update/delete operations to trusted admins.
 - Restrict reads if quiz content should not be public.

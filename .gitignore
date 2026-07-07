@@ -3,5 +3,6 @@
 *.o
 *.log
 tempCodeRunnerFile.*
+config.js
 .DS_Store
 Thumbs.db

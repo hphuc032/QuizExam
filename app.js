@@ -1,19 +1,14 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getDatabase, ref, push, set, get, child, remove } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDFOd3beHY6b7ENqFFBSyAShSK5O2YDD_c",
-  authDomain: "quizexam-8f27d.firebaseapp.com",
-  databaseURL: "https://quizexam-8f27d-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "quizexam-8f27d",
-  storageBucket: "quizexam-8f27d.appspot.com",
-  messagingSenderId: "623038604901",
-  appId: "1:623038604901:web:20b4f081882ff072d6c88c"
-};
-
-const firebaseReady = !Object.values(firebaseConfig).some(value => String(value).includes("YOUR_"));
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const firebaseConfig = window.QUIZLAB_FIREBASE_CONFIG || {};
+const requiredFirebaseKeys = ["apiKey", "authDomain", "databaseURL", "projectId", "appId"];
+const firebaseReady = requiredFirebaseKeys.every(key => {
+  const value = firebaseConfig[key];
+  return value && !String(value).includes("YOUR_");
+});
+const app = firebaseReady ? initializeApp(firebaseConfig) : null;
+const db = firebaseReady ? getDatabase(app) : null;
 
 let questions = [];
 let submitted = false;
