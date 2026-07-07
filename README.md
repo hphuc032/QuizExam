@@ -16,7 +16,7 @@ a) Đáp án A
 d) Đáp án D
 ```
 
-Use `*` before every correct option. Questions can have one or more correct answers. Older `[a]--...` lines are still supported for existing quizzes.
+Use `*` before every correct option. Questions can have one or more correct answers. Single-answer questions show radio buttons; multi-answer questions show checkboxes. Older `[a]--...` lines are still supported for existing quizzes.
 
 ## Firebase safety checklist
 

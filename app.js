@@ -192,6 +192,10 @@ function isQuestionAnswered(questionIndex) {
   return getSelectedAnswers(questionIndex).length > 0;
 }
 
+function allowsMultipleAnswers(question) {
+  return getCorrectAnswers(question).length > 1;
+}
+
 function hasExactAnswers(question, selectedAnswers) {
   const correctAnswers = getCorrectAnswers(question);
   if (selectedAnswers.length !== correctAnswers.length) return false;
@@ -231,8 +235,10 @@ function getQuestionResultClass(questionIndex) {
 }
 
 function buildOptionHtml(questionIndex, option, optionIndex) {
+  const question = questions[questionIndex];
   const selectedAnswers = getSelectedAnswers(questionIndex);
   const isChosen = selectedAnswers.includes(optionIndex);
+  const inputType = allowsMultipleAnswers(question) ? "checkbox" : "radio";
   const classes = ["option"];
 
   if (isChosen) classes.push("selected");
@@ -245,7 +251,7 @@ function buildOptionHtml(questionIndex, option, optionIndex) {
 
   return `
     <label class="${classes.join(" ")}">
-      <input type="checkbox" name="answer-${questionIndex}" value="${optionIndex}" ${isChosen ? "checked" : ""} ${submitted ? "disabled" : ""}>
+      <input type="${inputType}" name="answer-${questionIndex}" value="${optionIndex}" ${isChosen ? "checked" : ""} ${submitted ? "disabled" : ""}>
       <div class="letter">${option.letter}.</div>
       <div>${escapeHtml(option.text)}</div>
     </label>
@@ -287,6 +293,13 @@ function renderAllQuestions() {
         const input = allQuestionsEl.querySelector(selector);
         if (input) {
           input.addEventListener("change", () => {
+            if (!allowsMultipleAnswers(question)) {
+              userAnswers[questionIndex] = [optionIndex];
+              updateTopMeta();
+              renderAllQuestions();
+              return;
+            }
+
             const selectedAnswers = new Set(getSelectedAnswers(questionIndex));
             if (input.checked) selectedAnswers.add(optionIndex);
             else selectedAnswers.delete(optionIndex);
