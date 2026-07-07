@@ -334,6 +334,14 @@ function formatParseNotice(parsedCount, errors) {
   return `Đã tạo ${parsedCount} câu hỏi. Bỏ qua ${errors.length} câu lỗi format. ${preview}${suffix}`;
 }
 
+function formatParseFailure(errors) {
+  if (!errors.length) return "Không parse được câu hỏi nào. Hãy kiểm tra lại format.";
+
+  const preview = errors.slice(0, 3).join(" ");
+  const suffix = errors.length > 3 ? ` Còn ${errors.length - 3} lỗi khác.` : "";
+  return `Không tạo được câu hỏi nào. ${preview}${suffix}`;
+}
+
 function parseQuestions() {
   const raw = rawInputEl.value.trim();
   if (!raw) {
@@ -348,7 +356,7 @@ function parseQuestions() {
 
   const { parsed, errors } = parseRaw(raw);
   if (!parsed.length) {
-    showNotice("err", "Không parse được câu hỏi nào. Hãy kiểm tra lại format.");
+    showNotice("err", formatParseFailure(errors));
     return;
   }
 
