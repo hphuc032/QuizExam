@@ -1,5 +1,5 @@
 window.QUIZLAB_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDlGb9QtUHpxG5KW_ATkIjTheH8s5OGVT0",
+  apiKey: "exam",
   authDomain: "quizexam-8f27d.firebaseapp.com",
   databaseURL: "https://quizexam-8f27d-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "quizexam-8f27d",
