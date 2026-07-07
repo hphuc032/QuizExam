@@ -16,6 +16,8 @@ The real Firebase config must live in `config.js`, which is intentionally ignore
 
 Never commit `config.js` with a real API key.
 
+For GitHub Pages, add a repository secret named `QUIZEXAM_FIREBASE_CONFIG` with the full `config.js` contents. The Pages workflow creates `config.js` only inside the deployment artifact.
+
 Supported question format:
 
 ```text
