@@ -1,0 +1,103 @@
+{
+  "rules": {
+    "quizzes": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      "$quizId": {
+        ".validate": "newData.hasChildren(['title', 'questions', 'questionCount', 'createdAt', 'updatedAt', 'createdBy', 'isPublished'])",
+        "title": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
+        "questionCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "isPublished": { ".validate": "newData.isBoolean()" },
+        "createdBy": { ".validate": "newData.isString() && newData.val() == auth.uid" },
+        "questions": {
+          "$qIndex": {
+            ".validate": "newData.hasChildren(['text', 'options'])",
+            "text": { ".validate": "newData.isString() && newData.val().length > 0" },
+            "options": {
+              "$optIndex": {
+                ".validate": "newData.hasChildren(['letter', 'text'])",
+                "letter": { ".validate": "newData.isString() && newData.val().matches(/^[A-D]$/)" },
+                "text": { ".validate": "newData.isString() && newData.val().length > 0" }
+              }
+            },
+            "correctIndexes": {
+              ".validate": "!newData.exists() || (newData.isArray() && newData.val().length > 0 && newData.val().every(function(idx) { return idx.isNumber() && idx.val() >= 0; }))"
+            },
+            "explanation": { ".validate": "!newData.exists() || newData.isString()" },
+            "tags": { ".validate": "!newData.exists() || newData.isArray()" },
+            "difficulty": { ".validate": "!newData.exists() || (newData.isString() && (newData.val() == 'easy' || newData.val() == 'medium' || newData.val() == 'hard'))" }
+          }
+        }
+      }
+    },
+    "answerKeys": {
+      ".read": false,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      "$quizId": {
+        ".validate": "newData.hasChildren(['quizId', 'correctAnswers', 'createdAt'])",
+        "quizId": { ".validate": "newData.isString() && newData.val() == $quizId" },
+        "correctAnswers": {
+          ".validate": "newData.isArray()",
+          "$qIndex": {
+            ".validate": "newData.isArray() && newData.val().length > 0",
+            "$aIndex": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+          }
+        }
+      }
+    },
+    "attempts": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        "$attemptId": {
+          ".validate": "newData.hasChildren(['userId', 'quizId', 'quizTitle', 'mode', 'answers', 'score', 'totalQuestions', 'correctCount', 'wrongCount', 'unansweredCount', 'timeSpentSeconds', 'startedAt', 'completedAt', 'questionResults', 'verified'])",
+          "userId": { ".validate": "newData.isString() && newData.val() == auth.uid" },
+          "quizId": { ".validate": "newData.isString() && newData.val().length > 0" },
+          "mode": { ".validate": "newData.isString() && (newData.val() == 'practice' || newData.val() == 'exam')" },
+          "answers": {
+            ".validate": "newData.isArray()",
+            "$qIndex": {
+              ".validate": "newData.isArray()",
+              "$aIndex": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+            }
+          },
+          "score": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "totalQuestions": { ".validate": "newData.isNumber() && newData.val() > 0" },
+          "correctCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "wrongCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "unansweredCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "timeSpentSeconds": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "verified": { ".validate": "newData.isBoolean()" },
+          "questionResults": {
+            "$qrIndex": {
+              ".validate": "newData.hasChildren(['questionIndex', 'questionText', 'selectedIndexes', 'correctIndexes', 'isCorrect'])",
+              "questionIndex": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "questionText": { ".validate": "newData.isString() && newData.val().length > 0" },
+              "selectedIndexes": {
+                ".validate": "newData.isArray()",
+                "$sIdx": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+              },
+              "correctIndexes": {
+                ".validate": "newData.isArray() && newData.val().length > 0",
+                "$cIdx": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+              },
+              "isCorrect": { ".validate": "newData.isBoolean()" },
+              "explanation": { ".validate": "!newData.exists() || newData.isString()" }
+            }
+          }
+        }
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        ".validate": "newData.hasChildren(['uid', 'email', 'role', 'createdAt', 'lastLoginAt'])",
+        "uid": { ".validate": "newData.isString() && newData.val() == $uid" },
+        "email": { ".validate": "newData.isString() && newData.val().contains('@')" },
+        "role": { ".validate": "newData.isString() && (newData.val() == 'admin' || newData.val() == 'student')" },
+        "displayName": { ".validate": "!newData.exists() || newData.isString()" }
+      }
+    }
+  }
+}

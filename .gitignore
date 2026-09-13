@@ -4,5 +4,6 @@
 *.log
 tempCodeRunnerFile.*
 config.js
+service-account.json
 .DS_Store
 Thumbs.db

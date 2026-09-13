@@ -1,0 +1,13 @@
+{
+  "name": "quizlab-scripts",
+  "version": "1.0.0",
+  "description": "Utility scripts for QuizLab",
+  "main": "bootstrap-admin.js",
+  "scripts": {
+    "bootstrap-admin": "node bootstrap-admin.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  },
+  "private": true
+}
