@@ -2,8 +2,10 @@
 *.obj
 *.o
 *.log
-tempCodeRunnerFile.*
+tempCodeRunnerFile*
 config.js
 service-account.json
+node_modules/
+*/node_modules/
 .DS_Store
 Thumbs.db

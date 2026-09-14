@@ -174,33 +174,63 @@ export function scrollToFirstUnanswered(state) {
   }
 }
 
-export function renderQuizList(container, quizzes, onLoad, onDelete) {
+export function renderQuizList(container, quizzes, callbacks = {}) {
+  // Backward compatibility: if 3rd arg was function (onLoad), adapt it
+  let options = callbacks;
+  if (typeof callbacks === "function") {
+    options = { onLoad: callbacks, onDelete: arguments[3] };
+  }
+  const { onLoad, onDelete, onTogglePublish, onStartPractice, onStartExam, role } = options;
+  const isAdmin = role === "admin";
+
   if (!quizzes.length) {
-    container.innerHTML = '<div class="small">Chưa có bộ đề nào.</div>';
+    container.innerHTML = `<div class="small" style="padding: 16px; text-align: center;">${isAdmin ? "Chưa có bộ đề nào. Hãy nhập nội dung ở trên và bấm 'Lưu bộ đề lên Firebase'." : "Hiện chưa có bộ đề nào được phát hành. Vui lòng quay lại sau."}</div>`;
     return;
   }
 
   container.innerHTML = quizzes.map(item => `
     <div class="saved-item">
-      <h4>${escapeHtml(item.title || "Không tên")}</h4>
-      <div class="meta">
-        ${Number(item.questionCount || 0)} câu
-        ${item.tags?.length ? ` • Tags: ${item.tags.map(escapeHtml).join(", ")}` : ""}
-        ${item.isPublished !== undefined ? ` • ${item.isPublished ? "Đã phát hành" : "Nháp"}` : ""}
-        • Cập nhật: ${escapeHtml(String(item.updatedAt || "").replace("T", " ").slice(0, 16))}
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+          <h4>${escapeHtml(item.title || "Không tên")}</h4>
+          <span class="status-badge ${item.isPublished ? "published" : "draft"}">
+            ${item.isPublished ? "✅ Đã phát hành" : "📝 Bản nháp"}
+          </span>
+        </div>
+        <div class="meta">
+          <span>📊 ${Number(item.questionCount || 0)} câu</span>
+          ${item.tags?.length ? `<span>• 🏷️ ${item.tags.map(escapeHtml).join(", ")}</span>` : ""}
+          <span>• 🕒 ${escapeHtml(String(item.updatedAt || "").replace("T", " ").slice(0, 16))}</span>
+        </div>
       </div>
       <div class="actions">
-        <button class="btn-soft" type="button" data-busy-control data-load="${escapeHtml(item.id)}">Mở</button>
-        <button class="btn-danger" type="button" data-busy-control data-delete="${escapeHtml(item.id)}">Xóa</button>
+        ${isAdmin ? `
+          <button class="btn-soft" type="button" data-busy-control data-load="${escapeHtml(item.id)}" title="Mở trong trình soạn thảo">✏️ Sửa đề</button>
+          <button class="btn-soft" type="button" data-busy-control data-toggle-publish="${escapeHtml(item.id)}" data-current-published="${Boolean(item.isPublished)}">
+            ${item.isPublished ? "🔒 Thu hồi" : "🌐 Phát hành"}
+          </button>
+          <button class="btn-danger" type="button" data-busy-control data-delete="${escapeHtml(item.id)}" title="Xóa bộ đề này">🗑️ Xóa</button>
+        ` : ""}
+        <button class="btn-soft" type="button" data-practice="${escapeHtml(item.id)}">📚 Luyện tập</button>
+        <button class="btn-primary" type="button" data-exam="${escapeHtml(item.id)}">📝 Thi thử</button>
       </div>
     </div>
   `).join("");
 
   container.querySelectorAll("[data-load]").forEach(button => {
-    button.addEventListener("click", () => onLoad(button.dataset.load));
+    button.addEventListener("click", () => onLoad?.(button.dataset.load));
   });
   container.querySelectorAll("[data-delete]").forEach(button => {
-    button.addEventListener("click", () => onDelete(button.dataset.delete));
+    button.addEventListener("click", () => onDelete?.(button.dataset.delete));
+  });
+  container.querySelectorAll("[data-toggle-publish]").forEach(button => {
+    button.addEventListener("click", () => onTogglePublish?.(button.dataset.togglePublish, button.dataset.currentPublished === "true"));
+  });
+  container.querySelectorAll("[data-practice]").forEach(button => {
+    button.addEventListener("click", () => onStartPractice?.(button.dataset.practice));
+  });
+  container.querySelectorAll("[data-exam]").forEach(button => {
+    button.addEventListener("click", () => onStartExam?.(button.dataset.exam));
   });
 }
 

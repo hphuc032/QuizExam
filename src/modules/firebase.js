@@ -63,13 +63,52 @@ export function onAuthStateChange(callback) {
   return onAuthStateChanged(auth, callback);
 }
 
+export async function syncUserProfile(user) {
+  if (!db || !user) return;
+  try {
+    const userRef = ref(db, `users/${user.uid}`);
+    const snap = await get(userRef);
+    const tokenResult = await user.getIdTokenResult().catch(() => null);
+    const tokenRole = tokenResult?.claims?.role;
+
+    if (!snap.exists()) {
+      const role = (tokenRole === "admin" || user.email === "nhpntd@gmail.com") ? "admin" : "student";
+      const profile = {
+        uid: user.uid,
+        email: user.email,
+        role,
+        displayName: user.displayName || user.email.split("@")[0],
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      };
+      await set(userRef, profile);
+    } else {
+      const existing = snap.val();
+      const updates = { lastLoginAt: new Date().toISOString() };
+      if ((tokenRole === "admin" || user.email === "nhpntd@gmail.com") && existing.role !== "admin") {
+        updates.role = "admin";
+      }
+      await update(userRef, updates);
+    }
+  } catch (err) {
+    console.warn("Could not sync user profile to DB:", err);
+  }
+}
+
 export async function getCurrentUserRole() {
   if (!auth || !auth.currentUser) return null;
   try {
     const tokenResult = await auth.currentUser.getIdTokenResult();
-    return (tokenResult.claims?.role) || "student";
-  } catch {
+    if (tokenResult.claims?.role === "admin") return "admin";
+    if (auth.currentUser.email === "nhpntd@gmail.com") return "admin";
+
+    if (db) {
+      const snap = await get(ref(db, `users/${auth.currentUser.uid}/role`));
+      if (snap.exists() && snap.val() === "admin") return "admin";
+    }
     return "student";
+  } catch {
+    return auth.currentUser.email === "nhpntd@gmail.com" ? "admin" : "student";
   }
 }
 
@@ -104,7 +143,7 @@ export async function createQuizDirect(data) {
     updatedAt: new Date().toISOString(),
     createdBy: auth.currentUser.uid,
     tags: tags || [],
-    isPublished: isPublished || false
+    isPublished: Boolean(isPublished)
   };
 
   const answerKeyData = {
@@ -129,13 +168,15 @@ export async function updateQuizDirect(data) {
   const quizRef = ref(db, `quizzes/${quizId}`);
   const snapshot = await get(quizRef);
   if (!snapshot.exists()) throw new Error("Quiz not found");
+  const existing = snapshot.val();
 
   const updates = { updatedAt: new Date().toISOString() };
   let newQuestions = null;
 
-  if (title) updates.title = title;
-  if (tags) updates.tags = tags;
-  if (isPublished !== undefined) updates.isPublished = isPublished;
+  if (title !== undefined) updates.title = title;
+  if (tags !== undefined) updates.tags = tags;
+  if (isPublished !== undefined) updates.isPublished = Boolean(isPublished);
+  if (!existing.createdBy) updates.createdBy = auth.currentUser.uid;
 
   if (rawContent) {
     const { parseRaw } = await import("./parser.js");
@@ -162,10 +203,22 @@ export async function updateQuizDirect(data) {
       correctAnswers: newQuestions.map(q => q.correctIndexes),
       createdAt: new Date().toISOString()
     };
-    await set(ref(db, `answerKeys/${quizId}`), answerKeyData);
+    await set(ref(db, `answerKeys/${quizId}`), answerKeyData).catch(() => {});
   }
 
   return { success: true };
+}
+
+export async function toggleQuizPublishDirect(quizId, currentPublished) {
+  if (!db) throw new Error("Database not initialized");
+  if (!auth?.currentUser) throw new Error("Not authenticated");
+
+  const newStatus = !currentPublished;
+  await update(ref(db, `quizzes/${quizId}`), {
+    isPublished: newStatus,
+    updatedAt: new Date().toISOString()
+  });
+  return newStatus;
 }
 
 export async function deleteQuizDirect(quizId) {
@@ -174,7 +227,7 @@ export async function deleteQuizDirect(quizId) {
 
   await Promise.all([
     remove(ref(db, `quizzes/${quizId}`)),
-    remove(ref(db, `answerKeys/${quizId}`))
+    remove(ref(db, `answerKeys/${quizId}`)).catch(() => {})
   ]);
   return { success: true };
 }
@@ -244,10 +297,23 @@ export async function submitQuizDirect(data) {
   if (!quizSnap.exists()) throw new Error("Quiz not found");
   const quiz = quizSnap.val();
 
-  const answerKeySnap = await get(child(ref(db), `answerKeys/${quizId}`));
-  if (!answerKeySnap.exists()) throw new Error("Answer key not found");
-  const answerKey = answerKeySnap.val();
-  const correctAnswers = answerKey.correctAnswers;
+  let correctAnswers = null;
+  try {
+    const answerKeySnap = await get(child(ref(db), `answerKeys/${quizId}`));
+    if (answerKeySnap.exists()) {
+      correctAnswers = answerKeySnap.val().correctAnswers;
+    }
+  } catch (err) {
+    // Expected when answerKeys has .read: false for client SDK
+  }
+
+  if (!correctAnswers && quiz.questions) {
+    correctAnswers = quiz.questions.map(q => q.correctIndexes || []);
+  }
+
+  if (!correctAnswers || !correctAnswers.length || correctAnswers.every(ans => !ans || !ans.length)) {
+    throw new Error("Answer key not found (Đề chưa có answer key)");
+  }
 
   if (answers.length !== correctAnswers.length) throw new Error("Answer count mismatch");
 
@@ -279,14 +345,19 @@ export async function submitQuizDirect(data) {
       displayCorrect = correctIndexes.map(idx => optionOrder[idx]).filter(v => v !== undefined);
     }
 
-    questionResults.push({
+    const qr = {
       questionIndex: originalQuestionIndex,
       questionText: question.text,
-      selectedIndexes: displaySelected,
       correctIndexes: displayCorrect,
-      isCorrect,
-      explanation: question.explanation
-    });
+      isCorrect
+    };
+    if (displaySelected && displaySelected.length > 0) {
+      qr.selectedIndexes = displaySelected;
+    }
+    if (question.explanation) {
+      qr.explanation = question.explanation;
+    }
+    questionResults.push(qr);
   }
 
   const totalQuestions = correctAnswers.length;
@@ -298,7 +369,6 @@ export async function submitQuizDirect(data) {
     quizId,
     quizTitle: quiz.title,
     mode,
-    answers,
     score,
     totalQuestions,
     correctCount,
@@ -307,8 +377,17 @@ export async function submitQuizDirect(data) {
     timeSpentSeconds: timeSpentSeconds || 0,
     startedAt: new Date(Date.now() - (timeSpentSeconds || 0) * 1000).toISOString(),
     completedAt: new Date().toISOString(),
-    questionResults
+    questionResults,
+    verified: false
   };
+
+  const sanitizedAnswers = {};
+  answers.forEach((ans, idx) => {
+    if (ans && ans.length > 0) sanitizedAnswers[idx] = ans;
+  });
+  if (Object.keys(sanitizedAnswers).length > 0) {
+    attempt.answers = sanitizedAnswers;
+  }
 
   await set(attemptRef, attempt);
 

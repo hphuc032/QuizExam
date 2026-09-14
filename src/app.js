@@ -7,6 +7,8 @@ import {
   signOutUser,
   onAuthStateChange,
   getCurrentUserRole,
+  syncUserProfile,
+  toggleQuizPublishDirect,
   createQuizDirect,
   updateQuizDirect,
   deleteQuizDirect,
@@ -61,6 +63,7 @@ explanation: Kiến trúc client-server cho phép client và server chạy trên
 const noticeEl = document.getElementById("notice");
 const rawInputEl = document.getElementById("rawInput");
 const quizTitleEl = document.getElementById("quizTitle");
+const quizPublishedEl = document.getElementById("quizPublished");
 const quizShellEl = document.getElementById("quizShell");
 const topMetaEl = document.getElementById("topMeta");
 const currentNumberEl = document.getElementById("currentNumber");
@@ -93,6 +96,9 @@ function initAuth() {
 
   onAuthStateChange(async (user) => {
     currentUser = user ? { uid: user.uid, email: user.email, displayName: user.displayName } : null;
+    if (currentUser) {
+      await syncUserProfile(currentUser);
+    }
     currentRole = currentUser ? await getCurrentUserRole() : null;
     renderAuthUI(authContainerEl, currentUser, currentRole, handleSignOut);
     updateUIForRole();
@@ -132,7 +138,8 @@ async function handleSignIn(email, password) {
 async function handleSignUp(email, password) {
   try {
     showNotice(noticeEl, "info", "Đang đăng ký...");
-    await signUp(email, password);
+    const user = await signUp(email, password);
+    await syncUserProfile(user);
     showNotice(noticeEl, "info", "Đăng ký thành công! Đang đăng nhập...");
   } catch (error) {
     showNotice(noticeEl, "err", "Đăng ký thất bại: " + error.message);
@@ -184,12 +191,14 @@ function parseQuestions() {
 function loadSample() {
   quizTitleEl.value = "Mẫu CSDL";
   rawInputEl.value = SAMPLE;
+  if (quizPublishedEl) quizPublishedEl.checked = true;
   clearNotice(noticeEl);
 }
 
 async function saveQuizToFirebase() {
   const title = quizTitleEl.value.trim();
   const raw = rawInputEl.value.trim();
+  const isPublished = Boolean(quizPublishedEl ? quizPublishedEl.checked : true);
 
   if (!title || !raw) {
     showNotice(noticeEl, "warn", "Cần tên bộ đề và nội dung đề.");
@@ -220,12 +229,12 @@ async function saveQuizToFirebase() {
   try {
     showNotice(noticeEl, "info", "Đang lưu...");
     if (currentFirebaseId) {
-      await updateQuizDirect({ quizId: currentFirebaseId, title, rawContent: raw });
+      await updateQuizDirect({ quizId: currentFirebaseId, title, rawContent: raw, isPublished });
     } else {
-      const result = await createQuizDirect({ title, rawContent: raw, isPublished: false });
+      const result = await createQuizDirect({ title, rawContent: raw, isPublished });
       currentFirebaseId = result.quizId;
     }
-    showNotice(noticeEl, `info`, `Đã lưu${errors.length ? ` (${errors.length} câu lỗi bị bỏ qua)` : ""}`);
+    showNotice(noticeEl, `info`, `Đã lưu bộ đề (${isPublished ? "Đã phát hành" : "Bản nháp"})${errors.length ? ` (${errors.length} câu lỗi bị bỏ qua)` : ""}`);
     await loadSavedQuizzes();
   } catch (error) {
     showNotice(noticeEl, "err", "Lưu thất bại: " + error.message);
@@ -241,9 +250,58 @@ async function loadSavedQuizzes() {
   try {
     savedListEl.innerHTML = '<div class="small">Đang tải...</div>';
     const { quizzes } = await getQuizzesDirect({ publishedOnly: currentRole !== "admin" });
-    renderQuizList(savedListEl, quizzes, handleLoadQuiz, handleDeleteQuiz);
+    renderQuizList(savedListEl, quizzes, {
+      onLoad: handleLoadQuiz,
+      onDelete: handleDeleteQuiz,
+      onTogglePublish: handleTogglePublish,
+      onStartPractice: (id) => handleDirectStart(id, "practice"),
+      onStartExam: (id) => handleDirectStart(id, "exam"),
+      role: currentRole
+    });
   } catch (error) {
     savedListEl.innerHTML = '<div class="small">Lỗi tải: ' + error.message + '</div>';
+  }
+}
+
+async function handleTogglePublish(quizId, currentPublished) {
+  try {
+    showNotice(noticeEl, "info", "Đang cập nhật trạng thái phát hành...");
+    const newStatus = await toggleQuizPublishDirect(quizId, currentPublished);
+    showNotice(noticeEl, "info", newStatus ? "Đã phát hành bộ đề cho học sinh!" : "Đã chuyển bộ đề về bản nháp.");
+    if (currentFirebaseId === quizId && quizPublishedEl) {
+      quizPublishedEl.checked = newStatus;
+    }
+    await loadSavedQuizzes();
+  } catch (error) {
+    showNotice(noticeEl, "err", "Cập nhật thất bại: " + error.message);
+  }
+}
+
+async function handleDirectStart(quizId, mode) {
+  try {
+    showNotice(noticeEl, "info", `Đang chuẩn bị bài ${mode === "exam" ? "thi thử" : "luyện tập"}...`);
+    currentMode = mode;
+    currentFirebaseId = quizId;
+
+    const { quiz, questionOrder, optionOrders } = await getQuizForAttemptDirect(quizId, mode);
+    questions = quiz.questions.map(q => ({
+      text: q.text,
+      options: q.options,
+      correctIndexes: q.correctIndexes || [],
+      explanation: q.explanation,
+      tags: q.tags,
+      difficulty: q.difficulty
+    }));
+    quizState = createQuizState(questions, mode, questionOrder, optionOrders);
+    quizTitleEl.value = quiz.title;
+    if (quizPublishedEl) quizPublishedEl.checked = Boolean(quiz.isPublished);
+
+    renderQuizUI();
+    startTimerIfExam();
+    showNotice(noticeEl, "info", `Đã bắt đầu ${mode === "exam" ? "thi thử (có tính giờ)" : "luyện tập"}!`);
+    quizShellEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    showNotice(noticeEl, "err", "Bắt đầu bài thất bại: " + error.message);
   }
 }
 
@@ -263,6 +321,7 @@ async function handleLoadQuiz(id) {
     quizState = createQuizState(questions, currentMode, questionOrder, optionOrders);
     quizTitleEl.value = quiz.title;
     rawInputEl.value = questionsToRaw(questions);
+    if (quizPublishedEl) quizPublishedEl.checked = Boolean(quiz.isPublished);
     renderQuizUI();
     showNotice(noticeEl, "info", "Đã mở bộ đề.");
   } catch (error) {
@@ -300,7 +359,7 @@ function startQuiz(mode) {
 async function loadQuizForExam(quizId) {
   try {
     showNotice(noticeEl, "info", "Đang tải đề thi...");
-    const { quiz, questionOrder, optionOrders } = await getQuizForAttempt(quizId, "exam");
+    const { quiz, questionOrder, optionOrders } = await getQuizForAttemptDirect(quizId, "exam");
     questions = quiz.questions.map(q => ({
       text: q.text,
       options: q.options,
@@ -311,6 +370,7 @@ async function loadQuizForExam(quizId) {
     }));
     quizState = createQuizState(questions, "exam", questionOrder, optionOrders);
     quizTitleEl.value = quiz.title;
+    if (quizPublishedEl) quizPublishedEl.checked = Boolean(quiz.isPublished);
     renderQuizUI();
     startTimerIfExam();
     showNotice(noticeEl, "info", "Đề thi đã sẵn sàng!");
@@ -500,6 +560,8 @@ async function handleViewAttempt(attemptId) {
 function clearInput() {
   rawInputEl.value = "";
   quizTitleEl.value = "";
+  if (quizPublishedEl) quizPublishedEl.checked = true;
+  currentFirebaseId = null;
   clearNotice(noticeEl);
 }
 
