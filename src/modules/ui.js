@@ -3,7 +3,7 @@ function escapeHtml(str) {
     .replace(/&/g, "&")
     .replace(/</g, "<")
     .replace(/>/g, ">")
-    .replace(/"/g, """);
+    .replace(/"/g, "\'");
 }
 
 function buildOptionHtml(question, questionIndex, option, optionIndex, state) {

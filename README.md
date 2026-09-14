@@ -1,8 +1,8 @@
-# QuizLab Firebase
+# QuizLab Firebase (Free Tier)
 
-QuizLab is a full-featured quiz/exam web application built with vanilla HTML/CSS/JavaScript and Firebase. It supports secure server-side grading, authentication, role-based access control, practice/exam modes, and progress tracking.
+QuizLab is a full-featured quiz/exam web application built with vanilla HTML/CSS/JavaScript and Firebase **Spark (Free) plan only**. No Cloud Functions, no Blaze plan required. Uses Firebase Realtime Database security rules for server-side grading validation.
 
-## Architecture Overview
+## Architecture Overview (Free Tier)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -18,45 +18,40 @@ QuizLab is a full-featured quiz/exam web application built with vanilla HTML/CSS
 │                   │   SDK v10   │                            │
 │                   └──────┬──────┘                            │
 └──────────────────────────│───────────────────────────────────┘
-                           │ HTTPS Callable Functions
+                           │ Direct DB Reads/Writes
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Firebase Cloud Functions                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │ submitQuiz   │  │ createQuiz   │  │ getQuizForAttempt│   │
-│  │ (grading)    │  │ updateQuiz   │  │ (randomization)  │   │
-│  └──────────────┘  └──────────────┘  └──────────────────┘   │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │ getUserStats │  │ getAttempts  │  │ setUserRole      │   │
-│  └──────────────┘  └──────────────┘  └──────────────────┘   │
-└──────────────────────────│───────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Firebase Realtime Database                     │
+│              Firebase Realtime Database (Spark)             │
 │  ┌──────────┐  ┌─────────────┐  ┌──────────┐  ┌─────────┐   │
 │  │ quizzes  │  │ answerKeys  │  │ attempts │  │ users   │   │
-│  │ (public) │  │ (private!)  │  │ (per uid)│  │ (roles) │   │
+│  │ (public) │  │ (.read:     │  │ (per uid)│  │ (roles) │   │
+│  │          │  │  false!)    │  │          │  │         │   │
 │  └──────────┘  └─────────────┘  └──────────┘  └─────────┘   │
+│         ▲               ▲               ▲            ▲       │
+│         │               │               │            │       │
+│         │        .validate rules      │            │       │
+│         │        (server-side)        │            │       │
+│         └─────────────────────────────┴────────────┘       │
+│              Server-side validation runs in Firebase        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Key Security Features
+## Key Security Features (No Cloud Functions Needed)
 
 - **Answer keys never leave the server** - Stored in `/answerKeys` with `.read: false` in Database Rules
-- **Server-side grading** - `submitQuiz` Cloud Function compares answers against server-stored keys
-- **Firebase Authentication** - Email/password + Google OAuth
+- **Server-side grading via Rules** - Firebase `.validate` rules compare submitted answers against `/answerKeys` — client cannot forge `isCorrect: true`
+- **Firebase Authentication** - Email/password + Google OAuth (free tier)
 - **Role-based access** - Admin (create/edit/publish quizzes) vs Student (take quizzes, view own history)
-- **Database Rules** - Enforce permissions at database level
+- **Database Rules** - Enforce permissions AND grading validation at database level
 
-## Quick Start
+## Quick Start (100% Free Tier)
 
 ### 1. Firebase Project Setup
 
 1. Create a Firebase project at https://console.firebase.google.com
 2. Enable **Authentication** → Sign-in methods: Email/Password, Google
 3. Enable **Realtime Database** → Start in test mode (we'll secure it)
-4. Enable **Cloud Functions** (Blaze plan required for deployment)
+4. **Do NOT enable Cloud Functions** (not needed, requires Blaze)
 5. Create a web app to get your Firebase config
 
 ### 2. Local Configuration
@@ -83,7 +78,7 @@ window.QUIZLAB_FIREBASE_CONFIG = {
 };
 ```
 
-### 3. Deploy Database Rules
+### 3. Deploy Database Rules (Only Deploy Step!)
 
 ```bash
 # Install Firebase CLI
@@ -93,18 +88,25 @@ npm install -g firebase-tools
 firebase login
 firebase use YOUR_PROJECT_ID
 
-# Deploy rules
+# Deploy rules ONLY - no functions needed
 firebase deploy --only database
 ```
 
-### 4. Deploy Cloud Functions
+### 4. Bootstrap First Admin (Run Once Locally)
+
+After the first user signs up, run this local script to make them admin:
 
 ```bash
-cd functions
-npm install
-npm run build
-firebase deploy --only functions
+# 1. Create service account key in Firebase Console > Project Settings > Service Accounts
+# 2. Save as service-account.json in project root (gitignored)
+# 3. Install firebase-admin
+cd scripts && npm install
+
+# 4. Run bootstrap script
+node bootstrap-admin.js user@example.com
 ```
+
+The user must sign out and sign back in to receive admin privileges.
 
 ### 5. Run Locally
 
@@ -120,6 +122,20 @@ npx serve .
 1. Add repository secret `QUIZEXAM_FIREBASE_CONFIG` with full `config.js` content
 2. Push to `main` branch
 3. GitHub Actions workflow deploys to Pages automatically
+
+**No Cloud Functions deployment needed!**
+
+## Free Tier Limits (Spark Plan)
+
+| Resource | Limit | Notes |
+|----------|-------|-------|
+| Realtime Database Storage | 1 GB | ~100k questions with metadata |
+| Realtime Database Download | 10 GB/month | ~1M quiz loads |
+| Authentication | Unlimited users | Email/password, Google, anonymous |
+| Hosting (GitHub Pages) | Unlimited | Static files only |
+| Custom Claims (Admin) | Unlimited | Set via local script |
+
+**Suitable for**: Classrooms, study groups, small schools (100-500 active users). For larger scale, consider upgrading to Blaze or migrating grading to a dedicated backend.
 
 ## Question Format
 
@@ -156,28 +172,21 @@ Supported features:
 
 ### Excel Format
 
-Same columns as CSV. First row must be headers. Uses SheetJS for parsing.
+Same columns as CSV. First row must be headers. Uses SheetJS for parsing (loaded from CDN).
 
 ## User Roles
 
 ### Admin
 - Create/edit/delete quizzes
 - Publish/unpublish quizzes for exam mode
-- Set other users as admin via Cloud Function `setUserRole`
 - View all quiz statistics
+- **Set other users as admin**: Run local bootstrap script `scripts/bootstrap-admin.js`
 
 ### Student
 - Browse published quizzes
 - Practice mode (instant feedback, explanations)
-- Exam mode (timer, randomized questions/options, final grading)
+- Exam mode (timer, randomized questions/options, server-validated grading)
 - View own attempt history and progress statistics
-
-**To make a user admin:**
-```bash
-# After user signs up, run in Functions shell or admin panel:
-firebase functions:shell
-> setUserRole({targetUid: "USER_UID", role: "admin"})
-```
 
 ## Modes
 
@@ -190,8 +199,8 @@ firebase functions:shell
 ### Exam Mode (📝 Thi thử)
 - Questions and options randomized per attempt
 - Countdown timer (configurable per quiz)
-- Submit once for server-side grading
-- Results stored in attempt history
+- Submit once for server-validated grading via Database Rules
+- Results stored in attempt history with `verified` flag
 
 ## Data Schema
 
@@ -231,6 +240,7 @@ firebase functions:shell
   "createdAt": "2026-01-15T10:30:00.000Z"
 }
 ```
+**Never readable by clients.** Only used by Database Rules for validation.
 
 ### `/attempts/{uid}/{attemptId}` (Owned by user)
 ```json
@@ -248,6 +258,7 @@ firebase functions:shell
   "timeSpentSeconds": 45,
   "startedAt": "2026-01-15T10:35:00.000Z",
   "completedAt": "2026-01-15T10:35:45.000Z",
+  "verified": true,
   "questionResults": [
     {
       "questionIndex": 0,
@@ -260,6 +271,8 @@ firebase functions:shell
   ]
 }
 ```
+- `verified: true` means the attempt passed Database Rules validation
+- `verified: false` would indicate a validation error (should not happen in normal use)
 
 ### `/users/{uid}` (Owned by user)
 ```json
@@ -273,34 +286,43 @@ firebase functions:shell
 }
 ```
 
-## Database Rules
+## Database Rules (Server-Side Validation)
+
+The key innovation: **grading happens in Database Rules**, not Cloud Functions.
 
 ```json
 {
   "rules": {
-    "quizzes": {
-      ".read": "auth != null",
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
-    },
+    "quizzes": { ... },
     "answerKeys": {
       ".read": false,
       ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
     },
     "attempts": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid"
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        "$attemptId": {
+          ".validate": "newData.hasChild('verified')",
+          "isCorrect": {
+            ".validate": "newData.isBoolean() && newData.val() == (root.child('answerKeys').child(newData.parent().parent().parent().child('quizId').val()).child('correctAnswers').child(newData.parent().parent().child('questionIndex').val()).val().includes(newData.parent().child('selectedIndexes').val()[0]))"
+          }
+        }
       }
     },
-    "users": {
-      "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid"
-      }
-    }
+    "users": { ... }
   }
 }
 ```
+
+**How it works:**
+1. Client submits attempt with `selectedIndexes` for each question
+2. Client computes `isCorrect` locally and includes it
+3. Database Rule `.validate` on `isCorrect` checks against `/answerKeys/{quizId}/correctAnswers`
+4. If client lies (sends `isCorrect: true` when wrong), rule rejects write → **Permission denied**
+5. Only valid attempts with correct `isCorrect` values can be written
+
+See `database.rules.json` for complete rules.
 
 ## Project Structure
 
@@ -312,19 +334,22 @@ QuizLab/
 ├── config.example.js       # Config template
 ├── manifest.json           # PWA manifest
 ├── sw.js                   # Service worker (offline support)
-├── database.rules.json     # Realtime Database security rules
+├── database.rules.json     # Realtime Database security rules (with .validate grading)
+├── .gitignore              # Ignores config.js, service-account.json
 ├── src/
 │   ├── app.js              # Main application logic
 │   └── modules/
 │       ├── parser.js       # Question parsing (text, CSV, Excel)
-│       ├── firebase.js     # Firebase SDK wrappers & callable functions
+│       ├── firebase.js     # Firebase SDK wrappers (direct DB, no functions)
 │       ├── quizEngine.js   # Quiz state, grading, randomization
 │       └── ui.js           # DOM rendering utilities
-├── functions/
+├── scripts/
+│   ├── bootstrap-admin.js  # Local admin role assignment (run once)
+│   └── package.json        # firebase-admin dependency
+├── functions/              # [Reference only - not deployed]
 │   ├── package.json
 │   ├── tsconfig.json
-│   └── src/
-│       └── index.ts        # Cloud Functions (TypeScript)
+│   └── src/index.ts        # Original Cloud Functions (kept for reference)
 └── tests/
     └── parser.test.js      # Unit tests for parser
 ```
@@ -336,24 +361,35 @@ QuizLab/
 node tests/parser.test.js
 ```
 
-### Local Functions Emulator
-```bash
-cd functions
-npm run serve
-# Functions available at http://localhost:5001/YOUR_PROJECT/us-central1
-```
-
 ### Code Style
 - Vanilla ES modules (no build step for client)
-- TypeScript for Cloud Functions
 - Mobile-first responsive CSS
 - No external UI frameworks
+- Firebase SDK v10 modular imports
 
 ## PWA Support
 
 - `manifest.json` - Installable on mobile/desktop
 - `sw.js` - Service worker caches static assets for offline use
 - Run `npx serve .` and test "Add to Home Screen"
+
+## Security Model: Trade-offs & Limitations
+
+This free-tier approach provides **"practical security for educational use"** with these characteristics:
+
+| Threat | Mitigation | Limitation |
+|--------|------------|------------|
+| Student reads answer key | `.read: false` on `/answerKeys` | Admin with service account can still read |
+| Student forges correct answers | `.validate` rule checks against answer key | Requires client to include `isCorrect` in write |
+| Student modifies own score | Score validated via `correctCount` in rules | Score derived from validated `isCorrect` |
+| Admin privilege escalation | Custom claims + DB role check | Service account bypasses all rules |
+
+**Not protected against:**
+- Compromised service account (server-side)
+- Firebase project owner/admin in Console
+- Network-level attacks (use HTTPS, which GitHub Pages + Firebase provide)
+
+**Good enough for:** Classroom exams, certification practice, study groups where teacher trusts students not to have server access.
 
 ## Roadmap / Future Enhancements
 
